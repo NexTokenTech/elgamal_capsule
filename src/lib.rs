@@ -1,65 +1,49 @@
-#[cfg(test)]
-mod tests {
-    use num::BigInt;
-    use crate::elgamal;
-    #[test]
-    fn it_works() {
-        // let result = 2 + 2;
-        // assert_eq!(result, 4);
-        elgamal::generate_pub_key(&BigInt::from(2929),32,32);
-    }
-}
-
-
 /// elgamal mod
 /// this is a utils for elgamal security algorithm
 /// use for generating public_key
 /// ```rust
 /// # use elgamal_capsule::elgamal;
-/// let big_num = BigInt::from(2929);
-/// let tuple = elgamal::generate_pub_key(&big_num,32,32);
-/// let pubkey = tuple.0;
-/// let mt19937 = tuple.1;
+/// # use rug::Integer;
+/// # use rug::rand::RandState;
+/// let big_num = Integer::from(2929);
+/// let mut rand = RandState::new_mersenne_twister();
+/// let seed = Integer::from_str_radix("833050814021254693158343911234888353695402778102174580258852673738983005", 10).unwrap();
+/// rand.seed(&seed);
+/// let pubkey = elgamal::generate_pub_key(&mut rand, 20);
+/// assert_eq!(pubkey.g.to_u32().unwrap(), 245393, "Public key g part {} is not correct!", &pubkey.g);
+/// assert_eq!(pubkey.h.to_u32().unwrap(), 156227, "Public key h part {} is not correct!", &pubkey.g);
+/// assert_eq!(pubkey.p.to_u32().unwrap(), 793537, "Public key p part {} is not correct!", &pubkey.g);
 /// ```
 pub mod elgamal {
-    use crate::elgamal_utils;
-    use mt19937;
-    use num::bigint::BigInt;
-    use encoding::{Encoding, EncoderTrap};
+    use crate::utils;
     use encoding::all::UTF_16LE;
-    use num::BigUint;
+    use encoding::{DecoderTrap, EncoderTrap, Encoding};
+    use rug::ops::Pow;
+    use rug::{rand::RandState, Complete, Integer};
 
-    pub fn test_fn(){
+    const STR_RADIX: i32 = 10;
+    const SEARCH_LIMIT: u32 = 10;
+
+    pub fn test_fn() {
         println!("test function suc");
     }
 
     ///Init public key structure for elgamal encryption.
-    ///
-    ///             Args:
-    ///                 p: a large prime number
-    ///                 g: a generator
-    ///                 h:
-    ///                 bit_length: bit length of the prime number
     #[derive(Debug)]
     pub struct PublicKey {
-        pub p: BigInt,
-        pub g: BigInt,
-        pub h: BigInt,
+        pub p: Integer,
+        pub g: Integer,
+        pub h: Integer,
         pub bit_length: u32,
     }
 
     ///init private key structure for elgamal encryption.
-    ///
-    ///             Args:
-    ///                 p: a large prime number
-    ///                 g: a generator
-    ///                 x: a randomly chosen key
-    ///                 bit_length: bit length of the prime number
     #[derive(Debug)]
     pub struct PrivateKey {
-        pub p: BigInt,
-        pub g: BigInt,
-        pub x: BigInt,
+        pub p: Integer,
+        pub g: Integer,
+        pub x: Integer,
+        pub bit_length: u32,
     }
 
     impl PublicKey {
@@ -71,87 +55,66 @@ pub mod elgamal {
             println!("h:{}", self.h);
         }
         ///Generate a public key from string.
-        pub fn from_hex_str(key_str:&str)->PublicKey{
-            let keys:Vec<_> = key_str.split(", ").collect();
-            println!("keys~~~~~~~~~~~~~~~~{:?}",keys);
-            if keys.len() < 3{
+        pub fn from_hex_str(key_str: &str) -> Option<PublicKey> {
+            let keys: Vec<_> = key_str.split(", ").collect();
+            println!("keys~~~~~~~~~~~~~~~~{:?}", keys);
+            if keys.len() < 3 {
                 println!("The input string is not valid")
             }
-            let p = BigInt::from(BigUint::parse_bytes(keys[0].replace("0x", "").as_bytes(), 16).unwrap());
-            let g = BigInt::from(BigUint::parse_bytes(keys[1].replace("0x", "").as_bytes(), 16).unwrap());
-            let h = BigInt::from(BigUint::parse_bytes(keys[2].replace("0x", "").as_bytes(), 16).unwrap());
+            let p = Integer::from_str_radix(keys[0].replace("0x", "").as_str(), 16).ok()?;
+            let g = Integer::from_str_radix(keys[1].replace("0x", "").as_str(), 16).ok()?;
+            let h = Integer::from_str_radix(keys[2].replace("0x", "").as_str(), 16).ok()?;
             let bit_length = keys[3].parse::<u32>().unwrap();
-            PublicKey{
+            let pubkey = PublicKey {
                 p,
                 g,
                 h,
-                bit_length
-            }
+                bit_length,
+            };
+            Some(pubkey)
         }
     }
 
     ///generate public_key with seed、bit_length、i_confidence
     ///Generates public key K1 (p, g, h) and private key K2 (p, g, x).
-    ///
-    ///         Args:
-    ///             seed:
-    ///             bit_length:
-    ///             i_confidence:
-    ///
-    ///         Returns:
-    ///
-    ///          p is the prime
-    ///          g is the primitive root
-    ///          x is random in (0, p-1) inclusive
-    ///          h = g ^ x mod p
-    pub fn generate_pub_key(seed: &BigInt, bit_length: u32, i_confidence: u32) -> (PublicKey, mt19937::MT19937) {
-        let key = seed.to_u32_digits();
-        let mut rng: mt19937::MT19937 = mt19937::MT19937::new_with_slice_seed(&key.1);
-        let val = elgamal_utils::random_prime_bigint(bit_length, i_confidence, &mut rng);
-        let mut rng: mt19937::MT19937 = mt19937::MT19937::new_with_slice_seed(&key.1);
-        let val1 = elgamal_utils::find_primitive_root_bigint(&val,&mut rng);
-        let mut rng: mt19937::MT19937 = mt19937::MT19937::new_with_slice_seed(&key.1);
-        let val2 = elgamal_utils::find_h_bigint(&val,&mut rng);
+    pub fn generate_pub_key(rand: &mut RandState, bit_length: u32) -> PublicKey {
+        let p = utils::random_prime_bigint(rand, bit_length.clone());
+        let g = utils::find_primitive_root_bigint(rand, &p, SEARCH_LIMIT).unwrap();
+        let h = utils::find_h_bigint(rand, &g);
         let pubkey: PublicKey = PublicKey {
-            p: val,
-            g: val1,
-            h: val2,
+            p,
+            g,
+            h,
             bit_length,
         };
-        println!("p:{}~~~~~~~~g:{}~~~~~~~~~~~h:{}",pubkey.p,pubkey.g,pubkey.h);
-        (pubkey,rng)
+        pubkey
     }
 
     ///Encrypts a string using the public key k.
-    ///
-    ///         Args:
-    ///             key: public key for encryption
-    ///             s_plaintext: input message string
-    ///
-    ///         Returns:
-    ///             Encrypted text string.
-    pub fn encrypt<R: rand_core::RngCore>(key:&PublicKey,s_plaintext:&str,rng:&mut R) -> String{
-        let z = encode_utf16(s_plaintext, key.bit_length);
+    pub fn encrypt(rand: &mut RandState, key: &PublicKey, s_plaintext: &str) -> String {
+        let z = encode_utf16(s_plaintext, key.bit_length.clone());
         // cipher_pairs list will hold pairs (c, d) corresponding to each integer in z
-        let mut cipher_pairs = vec!();
+        let mut cipher_pairs = Vec::new();
         // i is an integer in z
-        for i_code in z{
+        for i_code in z {
             // pick random y from (0, p-1) inclusive
-            let y = elgamal_utils::gen_bigint_range(rng, &elgamal_utils::to_bigint_from_int(0), &(&key.p));
+            let y = utils::gen_bigint_range(rand, &Integer::ZERO, &key.p);
             // c = g^y mod p
-            let c = key.g.modpow(&y, &key.p);
+            let c = Integer::from(key.g.pow_mod_ref(&y, &key.p).unwrap());
             // d = ih^y mod p
-            let d = (&i_code * key.h.modpow(&y, &key.p)) % &key.p;
+            let hy = Integer::from(key.h.pow_mod_ref(&y, &key.p).unwrap());
+            let prod = Integer::from(&i_code * &hy);
+            let d = prod.div_rem_euc_ref(&key.p).complete().1;
             // add the pair to the cipher pairs list
-            let mut arr:Vec<BigInt> = Vec::new();
+            let mut arr: Vec<Integer> = Vec::new();
             arr.push(c);
             arr.push(d);
             cipher_pairs.push(arr);
         }
         let mut encrypted_str = "".to_string();
-        for pair in cipher_pairs{
-            let pair_one = pair[0].to_str_radix(10).to_string();
-            let pair_two = pair[1].to_str_radix(10).to_string();
+        for pair in cipher_pairs {
+            let pair_one = pair[0].to_string_radix(STR_RADIX).to_string();
+            let pair_two = pair[1].to_string_radix(STR_RADIX).to_string();
             let space = " ".to_string();
 
             encrypted_str += &pair_one;
@@ -162,49 +125,126 @@ pub mod elgamal {
         encrypted_str
     }
 
+    ///Performs decryption on the cipher pairs found in Cipher using
+    ///private key K2 and writes the decrypted values to file Plaintext.
+    pub fn decrypt(key: &PrivateKey, cipher_str: &str) -> Option<String> {
+        // check if the last char is space
+        let mut cipher_chars = cipher_str.chars();
+        if let Some(last) = cipher_chars.clone().last() {
+            if last.is_whitespace() {
+                // if the last char is space, removed it from the string.
+                cipher_chars.next_back();
+            }
+        } else {
+            // if the cipher string is empty, return None.
+            return None;
+        }
+        let reduced_str = cipher_chars.as_str();
+        let ciphers = reduced_str.split(" ").collect::<Vec<&str>>();
+        let count = ciphers.len();
+        if count % 2 != 0 {
+            return None;
+        }
+        let mut plain_text = Vec::new();
+        for cd in ciphers.chunks(2) {
+            // c = first number in pair
+            let c = cd[0];
+            let c_int = Integer::from_str_radix(c, STR_RADIX).unwrap();
+            // d = second number in pair
+            let d = cd[1];
+            let d_int = Integer::from_str_radix(d, STR_RADIX).unwrap();
+            // s = c^x mod p
+            let s = c_int.pow_mod(&key.x, &key.p).unwrap();
+            // plaintext integer = ds^-1 mod p
+            let p_2 = Integer::from(&key.p - 2);
+            let mod_exp_s = s.pow_mod(&p_2, &key.p).unwrap();
+            let d_by_mod = Integer::from(d_int * mod_exp_s);
+            let plain_i = Integer::from(d_by_mod.div_rem_euc_ref(&key.p).complete().1);
+            // add plain to list of plaintext integers
+            plain_text.push(plain_i);
+            // count the length of the cipher strings
+        }
+        Some(decode_utf16(&plain_text, key.bit_length.clone()))
+    }
+
     ///Encodes bytes to integers mod p.
     ///         Example
     ///         if n = 24, k = n / 8 = 3
     ///         z[0] = (summation from i = 0 to i = k)m[i]*(2^(8*i))
     ///         where m[i] is the ith message byte
-    ///
-    ///         Args:
-    ///             s_plaintext: String text to be encoded
-    ///             bit_length: bit length of the prime number
-    ///
-    ///         Returns:
-    ///             A list of encoded integers
-    pub fn encode_utf16(s_plaintext:&str,bit_length:u32) -> Vec<BigInt>{
-        let mut byte_array:Vec<u8> = UTF_16LE.encode(s_plaintext, EncoderTrap::Strict).unwrap();
+    pub fn encode_utf16(s_plaintext: &str, bit_length: u32) -> Vec<Integer> {
+        let mut byte_array: Vec<u8> = UTF_16LE.encode(s_plaintext, EncoderTrap::Strict).unwrap();
         byte_array.insert(0, 254);
         byte_array.insert(0, 255);
 
         // z is the array of integers mod p
-        let mut z:Vec<BigInt> = vec![];
+        let mut z: Vec<Integer> = Vec::new();
         // each encoded integer will be a linear combination of k message bytes
         // k must be the number of bits in the prime divided by 8 because each
         // message byte is 8 bits long
-        let k:isize = (bit_length / 8) as isize;
+        let k: isize = (bit_length / 8) as isize;
         // j marks the jth encoded integer
         // j will start at 0 but make it -k because j will be incremented during first iteration
-        let mut j:isize = -1  * k;
+        let mut j: isize = -1 * k;
         // num is the summation of the message bytes
         // num = 0
         // i iterates through byte array
-        for idx in 0..byte_array.len(){
+        for idx in 0..byte_array.len() {
             // if i is divisible by k, start a new encoded integer
-            if idx as isize % k == 0{
+            if idx as isize % k == 0 {
                 j += k;
                 // num = 0
-                z.push(elgamal_utils::to_bigint_from_int(0));
+                z.push(Integer::ZERO);
             }
-            let index:usize = (j / k) as usize;
-            let base:BigInt = elgamal_utils::to_bigint_from_int(2);
-            let mi:u32 = (8*(idx as isize % k)) as u32;
+            let index = (j / k) as usize;
+            let base = Integer::from(2);
+            let mi: u32 = (8 * (idx as isize % k)) as u32;
             // add the byte multiplied by 2 raised to a multiple of 8
-            z[index] += elgamal_utils::to_bigint_from_int(byte_array[idx] as i64) * base.pow(mi);
+            z[index] += Integer::from(byte_array[idx] as i64) * base.pow(mi);
         }
         z
+    }
+
+    ///Decodes integers to the original message bytes.
+    /**
+    Example:
+    if "You" were encoded.
+    Letter        #ASCII
+    Y              89
+    o              111
+    u              117
+    if the encoded integer is 7696217 and k = 3
+    m[0] = 7696217 % 256 % 65536 / (2^(8*0)) = 89 = 'Y'
+    7696217 - (89 * (2^(8*0))) = 7696128
+    m[1] = 7696128 % 65536 / (2^(8*1)) = 111 = 'o'
+    7696128 - (111 * (2^(8*1))) = 7667712
+    m[2] = 7667712 / (2^(8*2)) = 117 = 'u'
+    */
+    pub fn decode_utf16(encoded_ints: &Vec<Integer>, bit_length: u32) -> String {
+        // bytes vector will hold the decoded original message bytes
+        let mut byte_array: Vec<u8> = Vec::new();
+        // each encoded integer is a linear combination of k message bytes
+        // k must be the number of bits in the prime divided by 8 because each
+        // message byte is 8 bits long
+        let k = bit_length / 8;
+        let two = Integer::from(2);
+        for num in encoded_ints {
+            let mut temp = num.clone();
+            for i in 0..k {
+                let idx_1 = i + 1;
+                for j in idx_1..k {
+                    temp = temp.div_rem_euc(Integer::from(two.clone().pow(8 * j))).1;
+                }
+                let two_pow_i = two.clone().pow(8 * i);
+                let letter = Integer::from(&temp / &two_pow_i).to_u8().unwrap();
+                byte_array.push(letter);
+                temp = Integer::from(num - (letter * two_pow_i));
+            }
+        }
+        let raw_text = UTF_16LE.decode(&byte_array, DecoderTrap::Strict).unwrap();
+        // remove the byte order mark (BOM)
+        let stripped_text = raw_text.strip_prefix("\u{feff}").unwrap();
+        stripped_text.to_string()
     }
 }
 
@@ -213,311 +253,115 @@ pub mod elgamal {
 /// generate p: a big prime
 /// generate g: a prime root
 /// generate h: a random from seed
-pub mod elgamal_utils{
+pub mod utils {
     #![allow(clippy::unreadable_literal, clippy::upper_case_acronyms)]
-    use mt19937::MT19937;
-    use mt19937;
-    use num::bigint::{BigInt, BigUint, ToBigInt, Sign};
-    use num::traits::{Zero,One};
-    use num::Integer;
+    use rug::{rand::RandState, Complete, Integer};
 
-    /** These real versions are due to Kaisuki, 2021/01/07 added */
-    pub fn gen_bigint_range<R: rand_core::RngCore>(
-        rng: &mut R,
-        start: &BigInt,
-        stop: &BigInt,
-    ) -> BigInt {
-        let width: BigInt = stop + 1 - start;
-        let k: u64 = width.bits(); // don't use (n-1) here because n can be 1
-        let mut r: BigInt = getrandbits(rng, k as usize); // 0 <= r < 2**k
-        while r >= width {
-            r = getrandbits(rng, k as usize);
-        }
-        return start + r;
-    }
-
-    /// Return an integer with k random bits.
-    fn getrandbits<R: rand_core::RngCore>(rng: &mut R, k: usize) -> BigInt {
-        if k == 0 {
-            return BigInt::from_slice(Sign::NoSign, &[0]);
-            // return Err(
-            //     vm.new_value_error("number of bits must be greater than zero".to_owned())
-            // );
-        }
-
-        // let mut rng = self.rng.lock();
-        let mut k = k;
-        let mut gen_u32 = |k| {
-            let r = rng.next_u32();
-            if k < 32 {
-                r >> (32 - k)
-            } else {
-                r
-            }
-        };
-
-        if k <= 32 {
-            return gen_u32(k).into();
-        }
-
-        let words = (k - 1) / 32 + 1;
-        let wordarray = (0..words)
-            .map(|_| {
-                let word = gen_u32(k);
-                k = k.wrapping_sub(32);
-                word
-            })
-            .collect::<Vec<_>>();
-
-        let uint = BigUint::new(wordarray);
-        // very unlikely but might as well check
-        let sign = if uint.is_zero() {
-            Sign::NoSign
-        } else {
-            Sign::Plus
-        };
-        BigInt::from_biguint(sign, uint)
+    pub fn gen_bigint_range(rand: &mut RandState, start: &Integer, stop: &Integer) -> Integer {
+        let range = Integer::from(stop - start);
+        let below = range.random_below(rand);
+        start + below
     }
 
     ///Find a prime number p for elgamal public key.
-    ///
-    ///             Args:
-    ///             bit_length: number of binary bits for the prime number.
-    ///             i_confidence:
-    ///             seed: random generator seed
-    ///
-    ///         Returns:
-    ///             A prime number with requested length of bits in binary.
     #[allow(unused)]
-    pub fn random_prime_bigint(
-        bit_length: u32,
-        i_confidence: u32,
-        r: &mut mt19937::MT19937,
-    ) -> BigInt {
-        let zero: BigInt = Zero::zero();
-        //keep testing until one is found
-        loop {
-            let one: BigInt = One::one();
-            let two: BigInt = &one + &one;
-            // generate potential prime randomly
-            let mut p = gen_prime(&bit_length, r);
-            // make sure it is odd
-            while p.mod_floor(&two) == zero {
-                p = gen_prime(&bit_length, r);
-            }
-            // keep doing this if the solovay-strassen test fails
-            while solovay_strassen(&p, i_confidence, r) != true {
-                p = gen_prime(&bit_length, r);
-                while p.mod_floor(&two) == zero {
-                    p = gen_prime(&bit_length, r);
-                }
-            }
-            // if p is prime compute p = 2*p + 1
-            // this step is critical to protect the encryption from Pohlig–Hellman algorithm
-            // if p is prime, we have succeeded; else, start over
-            p = p * two + one;
-            if solovay_strassen(&p, i_confidence, r) == true {
-                return p;
-            }
-        }
-    }
-
-    fn gen_prime(bit_length: &u32, r: &mut mt19937::MT19937) -> BigInt {
-        let base: BigInt = to_bigint_from_int(2);
-        let pow_num_low: BigInt = (bit_length - 2).to_bigint().unwrap();
-        let pow_num_high: BigInt = (bit_length - 1).to_bigint().unwrap();
-        let low = pow_bigint(&base, &pow_num_low);
-        let high = pow_bigint(&base, &pow_num_high);
-        let p: BigInt = gen_bigint_range(r, &low, &high);
-        p
+    pub fn random_prime_bigint(rand: &mut RandState, bit_length: u32) -> Integer {
+        // generate a random integer within bit length.
+        let mut i = Integer::from(Integer::random_bits(bit_length, rand));
+        // find a prime number next to above random integer.
+        i.next_prime()
     }
 
     ///Finds a primitive root for prime p.
     ///         This function was implemented from the algorithm described here:
     ///         http://modular.math.washington.edu/edu/2007/spring/ent/ent-html/node31.html
     ///
-    ///         Args:
-    ///             p:
-    ///             seed:
-    ///
-    ///         Returns:
-    ///             A primitive root for prime p.
+    /// # Arguments
+    /// * `rand` - MT19937 RNG
+    /// * `p` - A large prime number.
+    /// * `limit` - A limit number of trails to find the primitive root.
     /// the prime divisors of p-1 are 2 and (p-1)/2 because
     /// p = 2x + 1 where x is a prime
-    pub fn find_primitive_root_bigint(p: &BigInt,r: &mut mt19937::MT19937) -> BigInt {
-        let one: BigInt = One::one();
-        let two: BigInt = &one + &one;
-        if *p == two {
-            return One::one();
+    pub fn find_primitive_root_bigint(
+        rand: &mut RandState,
+        p: &Integer,
+        limit: u32,
+    ) -> Option<Integer> {
+        let one = Integer::from(1);
+        let two = Integer::from(2);
+        if p == &two {
+            return Some(one);
         }
-        let p1: BigInt = two;
-
-        let p2: BigInt = (p - &one) / p1;
-        let p3: BigInt = (p - &one) / &p2;
+        let p1 = two.clone();
+        let p2 = Integer::from((p - &one).complete() / p1);
+        let p3 = Integer::from((p - &one).complete() / &p2);
         let mut g;
+        let mut count = 0;
         //test random g's until one is found that is a primitive root mod p
         loop {
-            let range_num_low: BigInt = &one + &one;
-            let range_num_high: BigInt = p - &one;
-            g = gen_bigint_range(r, &range_num_low, &range_num_high);
+            let range_num_low = two.clone();
+            let range_num_high = Integer::from(p - &one);
+            g = gen_bigint_range(rand, &range_num_low, &range_num_high);
             // g is a primitive root if for all prime factors of p-1, p[i]
             // g^((p-1)/p[i]) (mod p) is not congruent to 1
-            if g.modpow(&p2, &p) != one {
-                if g.modpow(&p3, &p) != one {
-                    return g;
+            let gp2 = Integer::from(g.pow_mod_ref(&p2, p).unwrap());
+            if &gp2 != &one {
+                let gp3 = Integer::from(g.pow_mod_ref(&p3, p).unwrap());
+                if &gp3 != &one {
+                    return Some(g);
                 }
             }
+            if count > limit {
+                return None;
+            }
+            count += 1;
         }
     }
 
-    pub fn find_h_bigint(p: &BigInt,r: &mut mt19937::MT19937) -> BigInt {
-        let one: BigInt = One::one();
-        let range_num_low: BigInt = One::one();
-        let range_num_high: BigInt = p - &one;
-        let h = gen_bigint_range(r, &range_num_low, &range_num_high);
-        h
+    pub fn find_h_bigint(rand: &mut RandState, p: &Integer) -> Integer {
+        let one = Integer::from(1);
+        let range_num_high = Integer::from(p - &one);
+        gen_bigint_range(rand, &one, &range_num_high)
     }
+}
 
-    /// Solovay-strassen primality test.
-    ///     This function tests if num is prime.
-    ///     http://www-math.ucdenver.edu/~wcherowi/courses/m5410/ctcprime.html
-    ///
-    ///     Args:
-    ///     num: input integer
-    /// i_confidence:
-    ///
-    ///     Returns:
-    /// if pass the test
-    /// ensure confidence of t
-    pub fn solovay_strassen(num: &BigInt, i_confidence: u32, r: &mut MT19937) -> bool {
-        for _idx in 0..i_confidence {
-            let one: BigInt = One::one();
-            let high: BigInt = num - &one;
-            //choose random a between 1 and n-2
-            let a: BigInt = gen_bigint_range(r, &one, &high);
+#[cfg(test)]
+mod tests {
+    use crate::elgamal::*;
+    use rug::rand::RandState;
+    use rug::Integer;
 
-            let two: BigInt = &one +&one;
-            // if a is not relatively prime to n, n is composite
-            if a.gcd(num) > one {
-                return false;
-            }
-            //declares n prime if jacobi(a, n) is congruent to a^((n-1)/2) mod n
-            let jacobi_result: BigInt = jacobi(&a, num).mod_floor(num);
-            let mi: BigInt = (num - &one) / &two;
-            let pow_reulst: BigInt = a.modpow(&mi, num);
-            if jacobi_result != pow_reulst {
-                return false;
+    fn brute_search(pubkey: &PublicKey) -> Option<PrivateKey> {
+        let range = &pubkey.p.to_u32()?;
+        for i in 1..*range {
+            let index = Integer::from(i);
+            let g_pow_mod = pubkey.g.pow_mod_ref(&index, &pubkey.p).unwrap();
+            let mod_exp = Integer::from(g_pow_mod);
+            if &pubkey.h == &mod_exp {
+                return Some(PrivateKey {
+                    p: pubkey.p.clone(),
+                    g: pubkey.g.clone(),
+                    x: index,
+                    bit_length: pubkey.bit_length,
+                });
             }
         }
-        //if there have been t iterations without failure, num is believed to be prime
-        return true;
+        None
     }
 
-    /// Computes the jacobi symbol of a, n.
-    ///
-    ///     Args:
-    ///     a:
-    ///     n:
-    ///
-    ///     Returns:
-    pub fn jacobi(a: &BigInt, n: &BigInt) -> BigInt {
-        let bigint_0: BigInt = Zero::zero();
-        let bigint_1: BigInt = One::one();
-        let bigint_2: BigInt = to_bigint_from_int(2);
-        let bigint_r1: BigInt = to_bigint_from_int(-1);
-        let bigint_3: BigInt = to_bigint_from_int(3);
-        let bigint_4: BigInt = to_bigint_from_int(4);
-        let bigint_5: BigInt = to_bigint_from_int(5);
-        let bigint_7: BigInt = to_bigint_from_int(7);
-        let bigint_8: BigInt = to_bigint_from_int(8);
-        return match a {
-            a if a == &bigint_0 => {
-                if n == &bigint_1 {
-                    bigint_1.clone()
-                } else {
-                    bigint_0.clone()
-                }
-            },
-            a if a == &bigint_r1 => {
-                if n.mod_floor(&bigint_2) == bigint_0 {
-                    bigint_1.clone()
-                } else {
-                    bigint_r1.clone()
-                }
-            },
-            a if a == &bigint_1 => {
-                bigint_1.clone()
-            },
-            a if a == &bigint_2 => {
-                if (n.mod_floor(&bigint_8) == bigint_1) || (n.mod_floor(&bigint_8) == bigint_7) {
-                    bigint_1.clone()
-                } else if (n.mod_floor(&bigint_8) == bigint_3) || (n.mod_floor(&bigint_8) == bigint_5) {
-                    bigint_r1.clone()
-                } else {
-                    bigint_0.clone()
-                }
-            },
-            a if a >= n =>{
-                let tmp_a = a.mod_floor(n);
-                jacobi(&tmp_a, n)
-            },
-            a if a.mod_floor(&bigint_2) == bigint_0 =>{
-                let tmp_a2 = a / &bigint_2;
-                jacobi(&bigint_2, n) * jacobi(&tmp_a2, n)
-            },
-            _ => {
-                if (a.mod_floor(&bigint_4) == bigint_3) && (n.mod_floor(&bigint_4) == bigint_3) {
-                    bigint_r1 * jacobi(n, a)
-                } else {
-                    jacobi(n, a)
-                }
-            }
-        };
-    }
-
-    pub fn pow_mod_bigint(base: &BigInt, exponent: &BigInt, modulus: &BigInt) -> BigInt {
-        let zero: BigInt = to_bigint_from_int(0);
-        let one: BigInt = to_bigint_from_int(1);
-
-        let mut result: BigInt = One::one();
-        let mut e: BigInt = exponent.clone();
-        let mut b: BigInt = base.clone();
-
-        while e > zero {
-            if &e & &one == one {
-                result = (result * &b) % (*&modulus);
-            }
-            e = e >> 1;
-            b = (&b * &b) % (*&modulus);
+    #[test]
+    fn test_encryption() {
+        // let result = 2 + 2;
+        // assert_eq!(result, 4);
+        let mut rand = RandState::new_mersenne_twister();
+        let seed = Integer::from(2929);
+        rand.seed(&seed);
+        let pubkey = generate_pub_key(&mut rand, 20);
+        if let Some(private) = brute_search(&pubkey) {
+            let msg = "Private key is found and here is a test of the elgamal crypto system.";
+            let cipher = encrypt(&mut rand, &pubkey, &msg);
+            let plain = decrypt(&private, cipher.as_str()).unwrap();
+            assert_eq!(msg, plain, "Private key is not valid!");
         }
-        result
     }
-
-    pub fn pow_bigint(base: &BigInt, exponent: &BigInt) -> BigInt {
-        let zero: BigInt = Zero::zero();
-        let one: BigInt = One::one();
-
-        let mut result: BigInt = One::one();
-        let mut e: BigInt = exponent.clone();
-        let mut b: BigInt = base.clone();
-
-        while e > zero {
-            if &e & &one == one {
-                result = result * &b;
-            }
-            e = e >> 1;
-            b = &b * &b;
-        }
-        result
-    }
-
-    pub fn to_bigint_from_int(a: i64) -> BigInt {
-        let output: BigInt = a.to_bigint().unwrap();
-        output
-    }
-    pub fn to_bigint_from_uint(a: u64) -> BigInt {
-        let output: BigInt = a.to_bigint().unwrap();
-        output
-    }
-
 }
