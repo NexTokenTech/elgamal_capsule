@@ -7,7 +7,4 @@ edition = "2021"
 
 [dependencies]
 encoding = "0.2.33"
-num = { version = "0.3.1", features = ["rand"] }
-mt19937 = "2.0.1"
-rand = { version = "0.6", default-features = false, optional = true }
-rand_core = { version = "0.6", features = ["std"] }
+rug = {version = "1.14.1" }
