@@ -10,9 +10,9 @@
 /// let seed = Integer::from_str_radix("833050814021254693158343911234888353695402778102174580258852673738983005", 10).unwrap();
 /// rand.seed(&seed);
 /// let pubkey = elgamal::generate_pub_key(&mut rand, 20);
-/// assert_eq!(pubkey.g.to_u32().unwrap(), 245393, "Public key g part {} is not correct!", &pubkey.g);
-/// assert_eq!(pubkey.h.to_u32().unwrap(), 156227, "Public key h part {} is not correct!", &pubkey.g);
-/// assert_eq!(pubkey.p.to_u32().unwrap(), 793537, "Public key p part {} is not correct!", &pubkey.g);
+/// assert_eq!(pubkey.g.to_u32().unwrap(), 96660, "Public key g part {} is not correct!", &pubkey.g);
+/// assert_eq!(pubkey.h.to_u32().unwrap(), 25155, "Public key h part {} is not correct!", &pubkey.g);
+/// assert_eq!(pubkey.p.to_u32().unwrap(), 1587683, "Public key p part {} is not correct!", &pubkey.g);
 /// ```
 pub mod elgamal {
     use crate::utils;
@@ -254,8 +254,8 @@ pub mod elgamal {
 /// generate g: a prime root
 /// generate h: a random from seed
 pub mod utils {
-    #![allow(clippy::unreadable_literal, clippy::upper_case_acronyms)]
     use rug::{rand::RandState, Complete, Integer};
+    use rug::integer::IsPrime;
 
     pub fn gen_bigint_range(rand: &mut RandState, start: &Integer, stop: &Integer) -> Integer {
         let range = Integer::from(stop - start);
@@ -263,13 +263,22 @@ pub mod utils {
         start + below
     }
 
-    ///Find a prime number p for elgamal public key.
+    ///Find a SAFE prime number p for elgamal public key.
     #[allow(unused)]
     pub fn random_prime_bigint(rand: &mut RandState, bit_length: u32) -> Integer {
         // generate a random integer within bit length.
-        let mut i = Integer::from(Integer::random_bits(bit_length, rand));
+        let mut prime_i = Integer::from(Integer::random_bits(bit_length, rand));
         // find a prime number next to above random integer.
-        i.next_prime()
+        let one = Integer::from(1);
+        let two = Integer::from(2);
+        loop {
+            prime_i = prime_i.next_prime();
+            let prime_j = Integer::from(&prime_i * &two + &one);
+            let res = prime_j.is_probably_prime(16);
+            if res == IsPrime::Yes || res == IsPrime::Probably {
+                return prime_j;
+            }
+        }
     }
 
     ///Finds a primitive root for prime p.
@@ -356,7 +365,7 @@ mod tests {
         let mut rand = RandState::new_mersenne_twister();
         let seed = Integer::from(2929);
         rand.seed(&seed);
-        let pubkey = generate_pub_key(&mut rand, 20);
+        let pubkey = generate_pub_key(&mut rand, 64);
         if let Some(private) = brute_search(&pubkey) {
             let msg = "Private key is found and here is a test of the elgamal crypto system.";
             let cipher = encrypt(&mut rand, &pubkey, &msg);

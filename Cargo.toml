@@ -8,3 +8,10 @@ edition = "2021"
 [dependencies]
 encoding = "0.2.33"
 rug = {version = "1.14.1" }
+
+[dev-dependencies]
+criterion = "0.3"
+
+[[bench]]
+name = "pubkey_benchmark"
+harness = false
