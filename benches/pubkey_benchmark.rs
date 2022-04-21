@@ -27,6 +27,9 @@ fn criterion_benchmark(c: &mut Criterion) {
     group.bench_function("pubkey gen big x10", |b| {
         b.iter(|| pubkey_gen_benchmark(196))
     });
+    group.bench_function("pubkey gen big big x10", |b| {
+        b.iter(|| pubkey_gen_benchmark(255))
+    });
     group.finish();
 }
 
