@@ -3,11 +3,11 @@ use encoding::all::UTF_16LE;
 use encoding::{DecoderTrap, EncoderTrap, Encoding};
 use rug::ops::Pow;
 use rug::{rand::RandState, Complete, Integer};
-use rug::integer::Order;
 use codec::{Decode, Encode};
 
 use crate::generic::{PublicKey,PrivateKey,Encryption};
 use sp_core::U256;
+use crate::utils::{bigint_u256, u256_bigint};
 
 const STR_RADIX: i32 = 10;
 const SEARCH_LIMIT: u32 = 100;
@@ -42,29 +42,23 @@ pub trait RawKey {
 impl RawKey for PublicKey {
     fn to_raw(self) -> RawPublicKey {
         RawPublicKey {
-            p: U256::from_little_endian(&self.p.to_digits::<u8>(Order::MsfLe)[..]),
-            g: U256::from_little_endian(&self.g.to_digits::<u8>(Order::MsfLe)[..]),
-            h: U256::from_little_endian(&self.h.to_digits::<u8>(Order::MsfLe)[..]),
+            p: bigint_u256(&self.p),
+            g: bigint_u256(&self.g),
+            h: bigint_u256(&self.h),
             bit_length: self.bit_length,
         }
     }
 
     fn from_raw(raw_key: RawPublicKey) -> Self {
-        let mut num: [u8; 32] = [0u8; 32];
-        raw_key.p.to_little_endian(&mut num);
-        let p = Integer::from_digits(&num[..], Order::MsfLe);
-        raw_key.g.to_little_endian(&mut num);
-        let g = Integer::from_digits(&num[..], Order::MsfLe);
-        raw_key.h.to_little_endian(&mut num);
-        let h = Integer::from_digits(&num[..], Order::MsfLe);
         PublicKey{
-            p,
-            g,
-            h,
+            p:u256_bigint(&raw_key.p),
+            g:u256_bigint(&raw_key.g),
+            h:u256_bigint(&raw_key.h),
             bit_length: raw_key.bit_length,
         }
     }
 }
+
 
 ///generate public_key with seed、bit_length、i_confidence
 ///Generates public key K1 (p, g, h) and private key K2 (p, g, x).

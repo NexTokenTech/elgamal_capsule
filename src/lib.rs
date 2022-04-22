@@ -140,9 +140,8 @@ mod tests {
         // rand.seed(&seed);
         let pubkey = generate_pub_key(&mut rand, 255, seed);
         let mut new_pubkey = pubkey.yield_pubkey(&mut rand, 255);
-        for _ in 0..14400 {
+        for _ in 0..10 {
             new_pubkey = new_pubkey.yield_pubkey(&mut rand, 255);
         }
-        println!("difficulty:255 pubkey:{:?}", new_pubkey.to_raw());
     }
 }

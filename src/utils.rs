@@ -1,5 +1,6 @@
-use rug::{rand::RandState, Complete, Integer};
+use rug::{rand::RandState, Complete, Integer, integer::Order};
 use rug::integer::IsPrime;
+use sp_core::U256;
 
 pub fn gen_bigint_range(rand: &mut RandState, start: &Integer, stop: &Integer) -> Integer {
     let range = Integer::from(stop - start);
@@ -75,4 +76,17 @@ pub fn find_h_bigint(rand: &mut RandState, p: &Integer) -> Integer {
     let one = Integer::from(1);
     let range_num_high = Integer::from(p - &one);
     gen_bigint_range(rand, &one, &range_num_high)
+}
+
+/// Convert big integer to U256 type.
+pub fn bigint_u256(int: &Integer) -> U256 {
+    let slice: Vec<u8> = int.to_digits(Order::Lsf);
+    U256::from_little_endian(&slice)
+}
+
+/// Convert U256 to big integer.
+pub fn u256_bigint(unsigned: &U256) -> Integer {
+    let mut num: [u8; 32] = [0u8; 32];
+    unsigned.to_little_endian(&mut num);
+    Integer::from_digits(&num, Order::Lsf)
 }
