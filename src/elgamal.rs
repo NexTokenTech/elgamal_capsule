@@ -10,7 +10,7 @@ use crate::generic::{PublicKey,PrivateKey,Encryption};
 use sp_core::U256;
 
 const STR_RADIX: i32 = 10;
-const SEARCH_LIMIT: u32 = 10;
+const SEARCH_LIMIT: u32 = 100;
 
 /// Generate a seed data slice from a key data.
 pub trait Seed {
@@ -68,9 +68,17 @@ impl RawKey for PublicKey {
 
 ///generate public_key with seed、bit_length、i_confidence
 ///Generates public key K1 (p, g, h) and private key K2 (p, g, x).
-pub fn generate_pub_key(rand: &mut RandState, bit_length: u32) -> PublicKey {
+pub fn generate_pub_key(rand: &mut RandState, bit_length: u32, seed:Integer) -> PublicKey {
+    rand.seed(&seed);
     let p = utils::random_prime_bigint(rand, bit_length.clone());
-    let g = utils::find_primitive_root_bigint(rand, &p, SEARCH_LIMIT).unwrap();
+    rand.seed(&seed);
+    let g = match utils::find_primitive_root_bigint(rand, &p, SEARCH_LIMIT) {
+        Some(value) => value,
+        None => {
+            Integer::from(0)
+        }
+    };
+    rand.seed(&seed);
     let h = utils::find_h_bigint(rand, &g);
     let pubkey: PublicKey = PublicKey {
         p,
