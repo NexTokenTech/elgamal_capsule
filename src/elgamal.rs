@@ -88,15 +88,15 @@ impl RawKey for PublicKey {
 pub fn generate_pub_key(rand: &mut RandState, bit_length: u32, seed:Integer) -> PublicKey {
     rand.seed(&seed);
     let p = utils::random_prime_bigint(rand, bit_length.clone());
-    // rand.seed(&seed);
+    rand.seed(&seed);
     let g = match utils::find_primitive_root_bigint(rand, &p, SEARCH_LIMIT) {
         Some(value) => value,
         None => {
             Integer::from(0)
         }
     };
-    // rand.seed(&seed);
-    let h = utils::find_h_bigint(rand, &g);
+    rand.seed(&seed);
+    let h = utils::find_h_bigint(rand, &p);
     let pubkey: PublicKey = PublicKey {
         p,
         g,
