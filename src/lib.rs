@@ -16,9 +16,8 @@
 /// ```
 pub mod elgamal;
 pub use crate::elgamal::*;
-pub mod generic;
 pub mod utils;
-use crate::generic::PublicKey;
+use crate::elgamal::PublicKey;
 use rug::{rand::RandState, Integer};
 use std::fmt;
 
@@ -97,7 +96,7 @@ impl KeyGenerator for PublicKey {
 #[cfg(test)]
 mod tests {
     use crate::elgamal::*;
-    use crate::generic::{Encryption, PrivateKey, PublicKey};
+    use crate::elgamal::{Encryption, PrivateKey, PublicKey};
     use crate::KeyGenerator;
     use rug::rand::RandState;
     use rug::Integer;

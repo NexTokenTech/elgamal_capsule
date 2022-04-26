@@ -1,13 +1,12 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use elgamal_capsule::{
-    elgamal::{generate_pub_key,RawPublicKey,RawKey},
+    elgamal::{generate_pub_key,RawPublicKey,RawKey,PublicKey},
     KeyGenerator
 };
 use rug::rand::RandState;
 use rug::Integer;
 use std::time::Duration;
 use sp_core::U256;
-use elgamal_capsule::generic::PublicKey;
 
 fn pubkey_gen_2_196_benchmark(rand:&mut RandState) {
     let raw_key = RawPublicKey {
