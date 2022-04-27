@@ -94,7 +94,7 @@ pub fn generate_pub_key(rand: &mut RandState, bit_length: u32, seed:Integer) -> 
             Integer::from(0)
         }
     };
-    let h = utils::find_h_bigint(rand, &g);
+    let h = utils::find_h_bigint(rand, &p);
     let pubkey: PublicKey = PublicKey {
         p,
         g,
