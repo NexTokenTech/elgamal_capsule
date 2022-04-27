@@ -30,7 +30,6 @@ impl fmt::Display for PublicKey {
 /// trait for printing some struct
 pub trait KeyFormat {
     fn from_hex_str(key_str: &str) -> Self;
-    fn print_parameter(&self);
 }
 
 /// Rust generator is not yet stable, use self-defined generator trait.
@@ -65,13 +64,6 @@ impl KeyFormat for PublicKey {
             bit_length,
         };
         pubkey
-    }
-    ///print public_key's p、g、h
-    fn print_parameter(&self) {
-        println!("_____________");
-        println!("p:{}", self.p);
-        println!("g:{}", self.g);
-        println!("h:{}", self.h);
     }
 }
 
