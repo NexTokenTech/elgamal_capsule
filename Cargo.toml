@@ -1,6 +1,6 @@
 [package]
 name = "elgamal_capsule"
-version = "0.1.0"
+version = "0.1.2"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -8,6 +8,10 @@ edition = "2021"
 [dependencies]
 encoding = "0.2.33"
 rug = {version = "1.14.1" }
+codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = [
+    "derive",
+] }
+sp-core = { version = "5.0.0", git = "https://github.com/paritytech/substrate.git", tag = "devhub/latest" }
 
 [dev-dependencies]
 criterion = "0.3"
@@ -15,3 +19,9 @@ criterion = "0.3"
 [[bench]]
 name = "pubkey_benchmark"
 harness = false
+
+[features]
+default = ["std"]
+std = [
+
+]
