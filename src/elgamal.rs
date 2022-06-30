@@ -1,12 +1,12 @@
 use crate::utils;
+use codec::{Decode, Encode};
 use encoding::all::UTF_16LE;
 use encoding::{DecoderTrap, EncoderTrap, Encoding};
 use rug::ops::Pow;
 use rug::{rand::RandState, Complete, Integer};
-use codec::{Decode, Encode};
 
-use sp_core::U256;
 use crate::utils::{bigint_u256, u256_bigint};
+use sp_core::U256;
 
 const STR_RADIX: i32 = 10;
 const SEARCH_LIMIT: u32 = 100;
@@ -31,8 +31,8 @@ pub struct PrivateKey {
 
 /// A trait to use a RNG and elgamal key to encrypt plaintext to UTF_16LE string.
 pub trait Encryption<I> {
-    fn encrypt(&self,rand: &mut RandState, key: &PublicKey) -> String;
-    fn decrypt(&self,key: &PrivateKey) -> Option<String>;
+    fn encrypt(&self, rand: &mut RandState, key: &PublicKey) -> String;
+    fn decrypt(&self, key: &PrivateKey) -> Option<String>;
 }
 
 /// Generate a seed data slice from a key data.
@@ -40,10 +40,9 @@ pub trait Seed {
     fn yield_seed(self) -> Integer;
 }
 
-impl Seed for PublicKey{
+impl Seed for PublicKey {
     fn yield_seed(self) -> Integer {
-        let sum = self.p + self.g + self.h;
-        sum.to_owned()
+        self.p / 3 + self.g / 3 + self.h / 3
     }
 }
 
@@ -73,26 +72,23 @@ impl RawKey for PublicKey {
     }
 
     fn from_raw(raw_key: RawPublicKey) -> Self {
-        PublicKey{
-            p:u256_bigint(&raw_key.p),
-            g:u256_bigint(&raw_key.g),
-            h:u256_bigint(&raw_key.h),
+        PublicKey {
+            p: u256_bigint(&raw_key.p),
+            g: u256_bigint(&raw_key.g),
+            h: u256_bigint(&raw_key.h),
             bit_length: raw_key.bit_length,
         }
     }
 }
 
-
 ///generate public_key with seed、bit_length、i_confidence
 ///Generates public key K1 (p, g, h) and private key K2 (p, g, x).
-pub fn generate_pub_key(rand: &mut RandState, bit_length: u32, seed:Integer) -> PublicKey {
+pub fn generate_pub_key(rand: &mut RandState, bit_length: u32, seed: Integer) -> PublicKey {
     rand.seed(&seed);
     let p = utils::random_prime_bigint(rand, bit_length.clone());
     let g = match utils::find_primitive_root_bigint(rand, &p, SEARCH_LIMIT) {
         Some(value) => value,
-        None => {
-            Integer::from(0)
-        }
+        None => Integer::from(0),
     };
     let h = utils::find_h_bigint(rand, &p);
     let pubkey: PublicKey = PublicKey {
@@ -104,10 +100,9 @@ pub fn generate_pub_key(rand: &mut RandState, bit_length: u32, seed:Integer) -> 
     pubkey
 }
 
-
 impl Encryption<Integer> for String {
     ///Encrypts a string using the public key k.
-    fn encrypt(&self,rand: &mut RandState, key: &PublicKey) -> String {
+    fn encrypt(&self, rand: &mut RandState, key: &PublicKey) -> String {
         let z = encode_utf16(self, key.bit_length.clone());
         // cipher_pairs list will hold pairs (c, d) corresponding to each integer in z
         let mut cipher_pairs = Vec::new();
@@ -143,7 +138,7 @@ impl Encryption<Integer> for String {
 
     ///Performs decryption on the cipher pairs found in Cipher using
     ///private key K2 and writes the decrypted values to file Plaintext.
-    fn decrypt(&self,key: &PrivateKey) -> Option<String> {
+    fn decrypt(&self, key: &PrivateKey) -> Option<String> {
         // check if the last char is space
         let mut cipher_chars = self.chars();
         if let Some(last) = cipher_chars.clone().last() {
