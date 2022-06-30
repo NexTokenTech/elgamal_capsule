@@ -9,10 +9,10 @@
 /// let mut rand = RandState::new_mersenne_twister();
 /// let seed = Integer::from_str_radix("833050814021254693158343911234888353695402778102174580258852673738983005", 10).unwrap();
 /// rand.seed(&seed);
-/// let pubkey = elgamal::generate_pub_key(&mut rand, 20);
-/// assert_eq!(pubkey.g.to_u32().unwrap(), 96660, "Public key g part {} is not correct!", &pubkey.g);
-/// assert_eq!(pubkey.h.to_u32().unwrap(), 25155, "Public key h part {} is not correct!", &pubkey.g);
-/// assert_eq!(pubkey.p.to_u32().unwrap(), 1587683, "Public key p part {} is not correct!", &pubkey.g);
+/// let pubkey = elgamal::generate_pub_key(&mut rand, 20, Integer::from(1));
+/// assert_eq!(pubkey.g.to_u32().unwrap(), 913616, "Public key g part {} is not correct!", &pubkey.g);
+/// assert_eq!(pubkey.h.to_u32().unwrap(), 55251, "Public key h part {} is not correct!", &pubkey.g);
+/// assert_eq!(pubkey.p.to_u32().unwrap(), 1012679, "Public key p part {} is not correct!", &pubkey.g);
 /// ```
 pub mod elgamal;
 pub use crate::elgamal::*;
@@ -92,6 +92,7 @@ mod tests {
     use crate::KeyGenerator;
     use rug::rand::RandState;
     use rug::Integer;
+    use az::OverflowingAs;
 
     fn brute_search(pubkey: &PublicKey) -> Option<PrivateKey> {
         let range = &pubkey.p.to_u32()?;
@@ -125,7 +126,7 @@ mod tests {
     }
 
     #[test]
-    fn test_yeild_pubkey() {
+    fn test_yield_pubkey() {
         let mut rand = RandState::new_mersenne_twister();
         let seed = Integer::from(3);
         // rand.seed(&seed);
@@ -134,5 +135,17 @@ mod tests {
         for _ in 0..10 {
             new_pubkey = new_pubkey.yield_pubkey(&mut rand, 255);
         }
+    }
+
+    #[test]
+    fn test_seed_overflow() {
+        let mut rand = RandState::new_mersenne_twister();
+        let seed = Integer::from(2929);
+        let pubkey = generate_pub_key(&mut rand, 16, seed);
+        let new_seed = pubkey.yield_seed();
+        let (short_seed, overflow_flag) = new_seed.clone().overflowing_as::<u16>();
+        assert_ne!(overflow_flag, true, "The yielded seed is overflowing the bit length.");
+        let long_seed = Integer::from(short_seed);
+        assert_eq!(long_seed, new_seed, "The seed is not correct!")
     }
 }
