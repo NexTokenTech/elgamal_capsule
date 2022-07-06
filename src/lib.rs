@@ -2,7 +2,7 @@
 /// this is a utils for elgamal security algorithm
 /// use for generating public_key
 /// ```rust
-/// # use elgamal_capsule::elgamal;
+/// # use elgamal_trex::elgamal;
 /// # use rug::Integer;
 /// # use rug::rand::RandState;
 /// let big_num = Integer::from(2929);
