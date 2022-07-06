@@ -1,5 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use elgamal_capsule::{
+use elgamal_trex::{
     elgamal::{generate_pub_key,RawPublicKey,RawKey,PublicKey},
     KeyGenerator
 };
