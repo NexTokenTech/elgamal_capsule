@@ -1,27 +1,18 @@
-# elgamal_trex
-### At first,you should import elgamal_trex as a git dependence in Cargo.toml
+# ElGamal encryption system for the TREX network
+This is a library for ElGamal encryption system on the TREX blockchain network. The data is encrpyted with the ElGamal system and appended to the TREX blockchain. Then, the data may be decrypted and released in the future.
+
+This library is only compiled and teseted against x86 computer architectures and may not be supported on ARM computers or WASM run-time.
+
+## Cargo usage
+To use this library in your ,you should import elgamal_trex as a git dependence in Cargo.toml
 ```
 [dependencies]
  elgamal_trex = { git = "https://github.com/NexTokenTech/elgamal_trex.git" }
 ```
-### And import num base library in Cargo.toml too.
-```
-[dependencies]
- elgamal_trex = { git = "https://github.com/NexTokenTech/elgamal_trex
- num = { version = "0.3.1"}
-```
-### Secondly,you should import crate header in your rs file.
-```
- use num::BigInt;
- use crate::elgamal;
-```
-### Then,you could use elgamal_trex's all pub functions,now
-#### Example:
-```
- elgamal::generate_pub_key(&BigInt::from(3989),32,32);
-```
+See more examples in the unit test (src/lib.rs).
 
 ## Cargo doc
+More details in this library is compiled as docstrings.
 ### This project support cargo doc, you should tap words in Terminal like below:
 ```
   cargo doc --open
