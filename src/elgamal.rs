@@ -253,8 +253,13 @@ pub fn decode_utf16(encoded_ints: &Vec<Integer>, bit_length: u32) -> String {
             temp = Integer::from(num - (letter * two_pow_i));
         }
     }
-    let raw_text = UTF_16LE.decode(&byte_array, DecoderTrap::Strict).unwrap();
+    let raw_text = UTF_16LE.decode(&byte_array, DecoderTrap::Replace).unwrap();
     // remove the byte order mark (BOM)
-    let stripped_text = raw_text.strip_prefix("\u{feff}").unwrap();
+    let mut stripped_text = "";
+    if raw_text.contains("\u{feff}") {
+        stripped_text = raw_text.strip_prefix("\u{feff}").unwrap();
+    }else{
+        stripped_text = &raw_text;
+    }
     stripped_text.to_string()
 }
