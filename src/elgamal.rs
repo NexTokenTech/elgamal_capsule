@@ -175,7 +175,7 @@ impl Encryption<Integer> for String {
             plain_text.push(plain_i);
             // count the length of the cipher strings
         }
-        Some(decode_utf16(&plain_text, key.bit_length.clone()))
+        Some(decode_utf16(&plain_text, key.bit_length.clone()).replace("\x00",""))
     }
 }
 
@@ -186,9 +186,8 @@ impl Encryption<Integer> for String {
 ///         where m[i] is the ith message byte
 pub fn encode_utf16(s_plaintext: &str, bit_length: u32) -> Vec<Integer> {
     let mut byte_array: Vec<u8> = UTF_16LE.encode(s_plaintext, EncoderTrap::Strict).unwrap();
-    byte_array.insert(0, 254);
-    byte_array.insert(0, 255);
-
+    byte_array.insert(0,254);
+    byte_array.insert(0,255);
     // z is the array of integers mod p
     let mut z: Vec<Integer> = Vec::new();
     // each encoded integer will be a linear combination of k message bytes
@@ -248,14 +247,15 @@ pub fn decode_utf16(encoded_ints: &Vec<Integer>, bit_length: u32) -> String {
                 temp = temp.div_rem_euc(Integer::from(two.clone().pow(8 * j))).1;
             }
             let two_pow_i = two.clone().pow(8 * i);
+            // TODO: &temp / &two_pow_i < 256
             let letter = Integer::from(&temp / &two_pow_i).to_u8().unwrap();
             byte_array.push(letter);
             temp = Integer::from(num - (letter * two_pow_i));
         }
     }
-    let raw_text = UTF_16LE.decode(&byte_array, DecoderTrap::Replace).unwrap();
+    let raw_text = UTF_16LE.decode(&byte_array, DecoderTrap::Ignore).unwrap();
     // remove the byte order mark (BOM)
-    let mut stripped_text = "";
+    let stripped_text;
     if raw_text.contains("\u{feff}") {
         stripped_text = raw_text.strip_prefix("\u{feff}").unwrap();
     }else{
